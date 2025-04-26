@@ -1,95 +1,134 @@
-import json
-import math
 import disnake
 from disnake.ext import commands
+import math
+import logging
+from datetime import datetime, timedelta
+from utils.database import Database
+from utils.embed_builder import EmbedBuilder
+from config.constants import ROLE_LEVELS, LEVEL_COLORS, LEVEL_EMOJIS, XP_PER_MESSAGE, BASE_XP, MAX_LEVEL, XP_COOLDOWN
+
+logger = logging.getLogger('sapphire_bot.levels')
 
 class Levels(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.users_data = {}
-        self.xp_per_message = 15
-        self.base_xp = 100
-        self.max_level = 50
-        self.load_data()
-
-    def load_data(self):
-        """Загружает данные пользователей из JSON файла"""
-        try:
-            with open('levels_data.json', 'r') as f:
-                self.users_data = json.load(f)
-        except FileNotFoundError:
-            self.users_data = {}
-            self.save_data()
-
-    def save_data(self):
-        """Сохраняет данные пользователей в JSON файл"""
-        with open('levels_data.json', 'w') as f:
-            json.dump(self.users_data, f, indent=4)
+        self.db = Database()
+        self.xp_per_message = XP_PER_MESSAGE
+        self.base_xp = BASE_XP
+        self.max_level = MAX_LEVEL
+        self.xp_cooldown = XP_COOLDOWN
+        self.user_cooldowns = {}
 
     async def update_roles(self, member, level):
         """Обновляет роли пользователя в зависимости от уровня"""
-        role_levels = {
-            1: 1364889084098510868,
-            5: 1364889174280372274,
-            10: 1364889171222855760,
-            15: 1364889168592769104,
-            25: 1364889165333925968,
-            35: 1364889161886204054,
-            45: 1364889851949879339,
-            50: 1364889574639407116
-        }
-        
         try:
-            # Получаем все роли, которые должны быть у пользователя
-            roles_to_add = []
-            for req_level, role_id in role_levels.items():
-                if level >= req_level:
-                    role = member.guild.get_role(role_id)
-                    if role and role not in member.roles:
-                        roles_to_add.append(role)
+            # Находим максимальный доступный уровень
+            max_applicable_level = max(
+                (req_level for req_level in ROLE_LEVELS if level >= req_level),
+                default=None
+            )
+            
+            if max_applicable_level is None:
+                return
+
+            # Получаем целевую роль
+            target_role_id = ROLE_LEVELS[max_applicable_level]
+            target_role = member.guild.get_role(target_role_id)
+            
+            if not target_role:
+                logger.error(f"Роль для уровня {max_applicable_level} не найдена")
+                return
+
+            # Получаем все роли из системы уровней
+            level_roles = [
+                member.guild.get_role(role_id) 
+                for role_id in ROLE_LEVELS.values()
+                if member.guild.get_role(role_id)
+            ]
+
+            # Удаляем все уровневые роли кроме целевой
+            roles_to_remove = [r for r in member.roles if r in level_roles and r != target_role]
+            
+            # Добавляем целевую роль если отсутствует
+            if target_role not in member.roles:
+                await member.add_roles(target_role)
+                
+            if roles_to_remove:
+                await member.remove_roles(*roles_to_remove)
+            
+            # Получаем текущие роли пользователя
+            current_roles = member.roles
+            
+            # Определяем роли для добавления и удаления
+            roles_to_add = [r for r in required_roles if r not in current_roles]
+            roles_to_remove = [r for r in current_roles if r.id in ROLE_LEVELS.values() and r not in required_roles]
             
             # Применяем изменения
             if roles_to_add:
                 await member.add_roles(*roles_to_add)
+            if roles_to_remove:
+                await member.remove_roles(*roles_to_remove)
                 
-                # Отправляем сообщение о новых ролях в канал spam
-                spam_channel = None
-                for channel in member.guild.channels:
-                    if channel.name.lower() == 'spam':
-                        spam_channel = channel
-                        break
-                
-                if spam_channel:
+            # Отправляем сообщение о новых ролях в канал spam
+            spam_channel = None
+            for channel in member.guild.channels:
+                if channel.name.lower() == 'spam':
+                    spam_channel = channel
+                    break
+            
+            if spam_channel and (roles_to_add or roles_to_remove):
+                role_changes = []
+                if roles_to_add:
                     role_names = [role.name for role in roles_to_add]
-                    embed = disnake.Embed(
-                        title="🎭 Новые роли!",
-                        description=f"🎉 {member.mention} получает новые роли за достижение {level} уровня:\n" + 
-                                  "\n".join([f"• {role}" for role in role_names]),
-                        color=self.get_level_color(level)
-                    )
-                    await spam_channel.send(embed=embed)
+                    role_changes.append(f"➕ Добавлены: {', '.join(role_names)}")
+                if roles_to_remove:
+                    role_names = [role.name for role in roles_to_remove]
+                    role_changes.append(f"➖ Удалены: {', '.join(role_names)}")
+                
+                embed = EmbedBuilder.success(
+                    title="🎭 Обновление ролей!",
+                    description=f"🎉 {member.mention} получает изменения ролей за достижение {level} уровня:\n" + 
+                              "\n".join(role_changes)
+                )
+                await spam_channel.send(embed=embed)
                     
         except Exception as e:
-            print(f"Ошибка при обновлении ролей: {e}")
+            logger.error(f"Ошибка при обновлении ролей: {e}")
 
     @commands.Cog.listener()
     async def on_message(self, message):
+        # Игнорируем сообщения от ботов
         if message.author.bot:
             return
             
         # Проверяем, не является ли канал спам-каналом
         if message.channel.name.lower().find('spam') != -1:
             return
-            
-        user_id = str(message.author.id)
-        if user_id not in self.users_data:
-            self.users_data[user_id] = {"xp": 0, "level": 0}
-            
-        old_level = self.users_data[user_id]["level"]
-        self.users_data[user_id]["xp"] += self.xp_per_message
-        new_level = self.calculate_level(self.users_data[user_id]["xp"])
-        self.users_data[user_id]["level"] = new_level
         
+        # Проверяем кулдаун
+        user_id = str(message.author.id)
+        current_time = datetime.now()
+        
+        if user_id in self.user_cooldowns:
+            time_diff = (current_time - self.user_cooldowns[user_id]).total_seconds()
+            if time_diff < self.xp_cooldown:  # 0 секунд - условие никогда не выполнится
+                return
+        
+        # Обновляем время последнего сообщения
+        self.user_cooldowns[user_id] = current_time
+            
+        # Получаем данные пользователя
+        user_data = self.db.get_user_data(user_id)
+            
+        old_level = user_data["level"]
+        user_data["xp"] += self.xp_per_message
+        new_level = self.calculate_level(user_data["xp"])
+        user_data["level"] = new_level
+        
+        # Сохраняем обновленные данные
+        self.db.update_user_data(user_id, user_data["xp"], user_data["level"])
+        
+        # Если уровень повысился
         if new_level > old_level:
             # Ищем канал spam
             spam_channel = None
@@ -99,53 +138,44 @@ class Levels(commands.Cog):
                     break
             
             if spam_channel:
-                embed = disnake.Embed(
-                    title=f"{self.get_level_emoji(new_level)} Новый уровень!",
-                    description=f"🎉 Поздравляем, {message.author.mention}!\nВы достигли **{new_level}** уровня!",
-                    color=self.get_level_color(new_level)
+                embed = EmbedBuilder.level_up(
+                    user=message.author,
+                    level=new_level,
+                    emoji=self.get_level_emoji(new_level)
                 )
-                embed.set_thumbnail(url=message.author.display_avatar.url)
                 await spam_channel.send(embed=embed)
                 
             # Обновляем роли пользователя
             await self.update_roles(message.author, new_level)
-            
-        self.save_data()
 
     @commands.slash_command(
         name="rank",
-        description="Показать ваш текущий уровень и опыт"
+        description="Показать уровень и опыт участника"
     )
-    async def rank(self, inter: disnake.ApplicationCommandInteraction):
-        user_id = str(inter.author.id)
-        if user_id not in self.users_data:
-            await inter.response.send_message(
-                "У вас пока нет уровня. Начните общаться!",
-                ephemeral=True
-            )
-            return
-            
-        user_data = self.users_data[user_id]
+    async def rank(
+        self, 
+        inter: disnake.ApplicationCommandInteraction,
+        member: disnake.Member = commands.Param(
+            default=None,
+            description="Участник для проверки (оставьте пустым для своего ранга)"
+        )
+    ):
+        target = member or inter.author
+        user_id = str(target.id)
+        user_data = self.db.get_user_data(user_id)
+        
         current_xp = user_data["xp"]
         current_level = user_data["level"]
         xp_for_next = self.calculate_xp_for_next_level(current_level)
         
-        embed = disnake.Embed(
-            title=f"{self.get_level_emoji(current_level)} Статистика {inter.author.display_name}",
-            color=self.get_level_color(current_level)
+        embed = EmbedBuilder.rank(
+            user=target,
+            level=current_level,
+            xp=current_xp,
+            next_level_xp=xp_for_next,
+            color=self.get_level_color(current_level),  # Восстанавливаем параметр цвета
+            emoji=self.get_level_emoji(current_level)
         )
-        
-        if current_level < self.max_level:
-            progress = f"{current_xp}/{xp_for_next}"
-            remaining = f"До следующего уровня: {xp_for_next - current_xp} XP"
-        else:
-            progress = f"{current_xp}"
-            remaining = "Максимальный уровень достигнут! 🎊"
-            
-        embed.add_field(name="Уровень", value=str(current_level), inline=True)
-        embed.add_field(name="Опыт", value=progress, inline=True)
-        embed.add_field(name="Прогресс", value=remaining, inline=False)
-        embed.set_thumbnail(url=inter.author.display_avatar.url)
         
         await inter.response.send_message(embed=embed)
 
@@ -154,28 +184,100 @@ class Levels(commands.Cog):
         description="Показать таблицу лидеров"
     )
     async def leaderboard(self, inter: disnake.ApplicationCommandInteraction):
-        sorted_users = sorted(
-            self.users_data.items(),
-            key=lambda x: (x[1]["level"], x[1]["xp"]),
-            reverse=True
-        )[:10]
+        await inter.response.defer()
         
-        embed = disnake.Embed(
-            title="🏆 Таблица лидеров",
-            color=0xFFD700
-        )
+        # Получаем топ пользователей
+        top_users = self.db.get_top_users(10)
         
-        for index, (user_id, data) in enumerate(sorted_users, 1):
-            user = await self.bot.get_or_fetch_user(int(user_id))
-            if user:
-                medal = "👑" if index == 1 else "🥈" if index == 2 else "🥉" if index == 3 else "✨"
-                embed.add_field(
-                    name=f"{medal} #{index} {user.name}",
-                    value=f"Уровень: {data['level']} | XP: {data['xp']}",
-                    inline=False
-                )
+        # Получаем объекты пользователей
+        user_objects = {}
+        for user_data in top_users:
+            try:
+                user_id = int(user_data["user_id"])
+                user = await self.bot.get_or_fetch_user(user_id)
+                if user:
+                    user_objects[user_data["user_id"]] = user
+            except Exception as e:
+                logger.error(f"Ошибка при получении пользователя {user_data['user_id']}: {e}")
         
-        await inter.response.send_message(embed=embed)
+        # Создаем эмбед
+        embed = EmbedBuilder.leaderboard(top_users, user_objects)
+        
+        await inter.followup.send(embed=embed)
+
+    @commands.slash_command(
+        name="set_level",
+        description="Управление уровнем и опытом пользователя"
+    )
+    @commands.has_role(1207281299849744385)
+    async def set_level(
+        self,
+        inter: disnake.ApplicationCommandInteraction,
+        member: disnake.Member,
+        action: str = commands.Param(choices=["set", "add", "subtract"]),
+        level: int = commands.Param(default=None, ge=0, le=MAX_LEVEL),
+        xp: int = commands.Param(default=None, ge=0)
+    ):
+        """Команда для гибкого управления уровнем и опытом"""
+        await inter.response.defer(ephemeral=True)
+        try:
+            if not (level or xp):
+                raise commands.BadArgument("Нужно указать level или xp")
+
+            user_data = self.db.get_user_data(str(member.id))
+            current_level = user_data["level"]
+            current_xp = user_data["xp"]
+
+            # Обрабатываем уровень
+            if level is not None:
+                if action == "set":
+                    new_level = level
+                elif action == "add":
+                    new_level = current_level + level
+                else: # subtract
+                    new_level = max(0, current_level - level)
+                
+                new_level = min(new_level, MAX_LEVEL)
+
+            # Обрабатываем опыт
+            if xp is not None:
+                if action == "set":
+                    new_xp = xp
+                elif action == "add":
+                    new_xp = current_xp + xp
+                else: # subtract
+                    new_xp = max(0, current_xp - xp)
+                
+                # Всегда пересчитываем уровень по XP
+                new_level = self.calculate_level(new_xp)
+            else:
+                new_xp = current_xp
+
+            # Обновляем данные
+            self.db.update_user_data(str(member.id), new_xp, new_level)
+            
+            # Обновляем роли
+            await self.update_roles(member, new_level)
+            
+            # Формируем сообщение
+            changes = []
+            if level is not None:
+                changes.append(f"• Уровень: {current_level} → {new_level}")
+            if xp is not None:
+                changes.append(f"• Опыт: {current_xp} → {new_xp}")
+            
+            embed = EmbedBuilder.success(
+                title="✅ Данные обновлены",
+                description=f"Пользователь {member.mention}:\n" + "\n".join(changes)
+            )
+            await inter.edit_original_response(embed=embed)
+            
+        except Exception as e:
+            embed = EmbedBuilder.error(
+                title="❌ Ошибка",
+                description=f"Ошибка: {str(e)}"
+            )
+            await inter.followup.send(embed=embed, ephemeral=True)
 
     def calculate_level(self, xp):
         """Вычисляет уровень на основе количества XP"""
@@ -191,29 +293,17 @@ class Levels(commands.Cog):
 
     def get_level_emoji(self, level):
         """Возвращает эмодзи в зависимости от уровня"""
-        if level >= 40:
-            return "🌟"
-        elif level >= 30:
-            return "💎"
-        elif level >= 20:
-            return "🔮"
-        elif level >= 10:
-            return "⭐"
-        else:
-            return "✨"
+        for min_level, emoji in sorted(LEVEL_EMOJIS.items(), reverse=True):
+            if level >= min_level:
+                return emoji
+        return "✨"
             
     def get_level_color(self, level):
         """Возвращает цвет в зависимости от уровня"""
-        if level >= 40:
-            return 0xFF0000  # Красный
-        elif level >= 30:
-            return 0xFFA500  # Оранжевый
-        elif level >= 20:
-            return 0xFFFF00  # Желтый
-        elif level >= 10:
-            return 0x00FF00  # Зеленый
-        else:
-            return 0x0000FF  # Синий
+        for min_level, color in sorted(LEVEL_COLORS.items(), reverse=True):
+            if level >= min_level:
+                return color
+        return 0x0000FF
 
 def setup(bot):
     bot.add_cog(Levels(bot))

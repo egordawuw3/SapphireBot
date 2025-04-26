@@ -29,13 +29,7 @@ class Staff(commands.Cog):
         self, 
         inter: disnake.ApplicationCommandInteraction,
         member: disnake.Member,
-        reason: str = "Причина не указана",
-        delete_messages_days: int = commands.Param(
-            default=0,
-            description="Удалить сообщения пользователя за последние N дней (0-7)",
-            ge=0,
-            le=7
-        )
+        reason: str = "Причина не указана"
     ):
         if not await self.check_staff(inter):
             return
@@ -49,7 +43,9 @@ class Staff(commands.Cog):
             return await inter.response.send_message(embed=embed, ephemeral=True)
 
         try:
-            await member.ban(reason=reason, delete_message_days=delete_messages_days)
+            # Удаляем все роли и выдаем роль бана
+            ban_role = inter.guild.get_role(1222507607026307082)
+            await member.edit(roles=[ban_role], reason=reason)
             
             embed = disnake.Embed(
                 title="🔨 Бан пользователя",
@@ -59,15 +55,14 @@ class Staff(commands.Cog):
             embed.add_field(name="Забанен пользователь", value=f"{member.mention} (`{member.id}`)", inline=False)
             embed.add_field(name="Модератор", value=f"{inter.author.mention}", inline=True)
             embed.add_field(name="Причина", value=reason, inline=True)
-            if delete_messages_days > 0:
-                embed.add_field(name="Удалены сообщения за", value=f"{delete_messages_days} дней", inline=True)
+            embed.add_field(name="Действие", value="Все роли удалены, выдана роль бана", inline=False)
             
             await inter.response.send_message(embed=embed)
             
             try:
                 dm_embed = disnake.Embed(
                     title="🔨 Вы были забанены",
-                    description=f"**Сервер:** {inter.guild.name}\n**Причина:** {reason}",
+                    description=f"**Сервер:** {inter.guild.name}\n**Причина:** {reason}\n\nВы потеряли все роли и получили роль бана",
                     color=0xff0000
                 )
                 await member.send(embed=dm_embed)
@@ -84,7 +79,7 @@ class Staff(commands.Cog):
 
     @commands.slash_command(
         name="unban",
-        description="Разбанить пользователя по ID"
+        description="Снять бан с пользователя по ID"
     )
     async def unban(
         self,
@@ -95,30 +90,43 @@ class Staff(commands.Cog):
             return
         
         try:
-            user = await self.bot.fetch_user(int(user_id))
-            await inter.guild.unban(user)
+            member = await inter.guild.fetch_member(int(user_id))
+            ban_role = inter.guild.get_role(1222507607026307082)
+            default_role = inter.guild.get_role(832314278702874694)
+            
+            if ban_role not in member.roles:
+                embed = disnake.Embed(
+                    title="❌ Ошибка",
+                    description="У пользователя нет роли бана!",
+                    color=0xff0000
+                )
+                return await inter.response.send_message(embed=embed, ephemeral=True)
+                
+            await member.remove_roles(ban_role, reason="Разбан модератором")
+            await member.add_roles(default_role, reason="Восстановление стандартной роли")
             
             embed = disnake.Embed(
-                title="🔓 Разбан пользователя",
+                title="🔓 Снятие бана",
                 color=0x00ff00,
                 timestamp=datetime.now()
             )
-            embed.add_field(name="Разбанен пользователь", value=f"{user.mention} (`{user.id}`)", inline=False)
+            embed.add_field(name="Пользователь", value=f"{member.mention} (`{member.id}`)", inline=False)
             embed.add_field(name="Модератор", value=f"{inter.author.mention}", inline=True)
+            embed.add_field(name="Действия", value=f"• Удалена роль бана {ban_role.mention}\n• Выдана стандартная роль {default_role.mention}", inline=False)
             
             await inter.response.send_message(embed=embed)
             
-        except ValueError:
+        except disnake.NotFound:
             embed = disnake.Embed(
                 title="❌ Ошибка",
-                description="Указан неверный ID пользователя!",
+                description="Пользователь не найден на сервере!",
                 color=0xff0000
             )
             await inter.response.send_message(embed=embed, ephemeral=True)
         except Exception as e:
             embed = disnake.Embed(
                 title="❌ Ошибка",
-                description=f"Не удалось разбанить пользователя: {str(e)}",
+                description=f"Не удалось снять бан: {str(e)}",
                 color=0xff0000
             )
             await inter.response.send_message(embed=embed, ephemeral=True)
@@ -146,7 +154,11 @@ class Staff(commands.Cog):
             return await inter.response.send_message(embed=embed, ephemeral=True)
 
         try:
-            await member.timeout(duration=duration * 60, reason=reason)
+            mute_role = inter.guild.get_role(999728904166187018)
+            if not mute_role:
+                raise ValueError("Роль мута не найдена")
+            
+            await member.add_roles(mute_role, reason=reason)
             
             embed = disnake.Embed(
                 title="🔇 Мут пользователя",
@@ -157,8 +169,14 @@ class Staff(commands.Cog):
             embed.add_field(name="Модератор", value=f"{inter.author.mention}", inline=True)
             embed.add_field(name="Длительность", value=f"{duration} минут", inline=True)
             embed.add_field(name="Причина", value=reason, inline=True)
+            embed.add_field(name="Действие", value=f"Выдана роль {mute_role.mention}", inline=False)
             
             await inter.response.send_message(embed=embed)
+            
+            # Автоматическое снятие роли через время
+            await asyncio.sleep(duration * 60)
+            if mute_role in member.roles:
+                await member.remove_roles(mute_role, reason="Автоматическое снятие мута")
             
             try:
                 dm_embed = disnake.Embed(
@@ -191,7 +209,9 @@ class Staff(commands.Cog):
             return
 
         try:
-            await member.timeout(duration=0)
+            mute_role = inter.guild.get_role(999728904166187018)
+            if mute_role in member.roles:
+                await member.remove_roles(mute_role, reason="Досрочное снятие мута")
             
             embed = disnake.Embed(
                 title="🔊 Размут пользователя",
@@ -200,6 +220,7 @@ class Staff(commands.Cog):
             )
             embed.add_field(name="Размучен пользователь", value=f"{member.mention} (`{member.id}`)", inline=False)
             embed.add_field(name="Модератор", value=f"{inter.author.mention}", inline=True)
+            embed.add_field(name="Действие", value=f"Удалена роль {mute_role.mention}", inline=False)
             
             await inter.response.send_message(embed=embed)
             

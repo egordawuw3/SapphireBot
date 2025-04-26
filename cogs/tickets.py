@@ -217,7 +217,8 @@ class Tickets(commands.Cog):
         # Отправляем новое сообщение
         try:
             await support_channel.send(embed=embed, view=view)
-            print(f"Сообщение для создания тикетов отправлено в канал {channel_name}")
+            # Already corrected in current file:
+            print(f"Сообщение отправлено в {support_channel.name}")
         except Exception as e:
             print(f"Ошибка при отправке сообщения: {e}")
 
@@ -230,20 +231,21 @@ class Tickets(commands.Cog):
     async def setup_tickets(self, inter: disnake.ApplicationCommandInteraction):
         """Команда для ручной отправки сообщения с кнопкой создания тикета."""
         embed = disnake.Embed(
-            title="🎫 Поддержка",
+            title="🔥 Поддержка",
             description=(
-                "Создав тикет, появляется ветка, где у вас появляются возможности:\n\n"
+                "<:Sapphire_icon:1159787682734542869> Создав тикет, появляется ветка, где у вас появляются возможности:\n\n"
                 "• Пожаловаться на участника сервера.\n"
                 "• Задать какой-либо вопрос по серверу.\n"
                 "• Сообщить о найденных вами багах или недочётах.\n"
                 "• Предложить идею по улучшению сервера.\n\n"
-                "За созданный вами тикет без причины вы получите предупреждение."
+                "<:Sapphire_icon:1159787647712120924> За созданный вами тикет без причины вы получите предупреждение."
             ),
             color=disnake.Color.blue()
+        ).set_image(
+            url="https://cdn.discordapp.com/attachments/1079626559423512679/1098117546328195072/whiteline.gif"
         )
-        embed.set_footer(text="Powered by Sapphire-Creators") # Обновленный футер
+        embed.set_footer(text="С уважением, администрация Sapphire Creators💎")
 
-        # Используем постоянный View
         view = disnake.ui.View(timeout=None)
         view.add_item(disnake.ui.Button(
             style=ButtonStyle.danger,
@@ -255,11 +257,8 @@ class Tickets(commands.Cog):
         try:
             await inter.channel.send(embed=embed, view=view)
             await inter.response.send_message("Сообщение для системы тикетов отправлено!", ephemeral=True)
-        except disnake.errors.Forbidden:
-             await inter.response.send_message("Ошибка: У бота нет прав на отправку сообщений в этом канале.", ephemeral=True)
         except Exception as e:
-             print(f"Ошибка в команде setup_tickets: {e}")
-             await inter.response.send_message(f"Произошла ошибка: {e}", ephemeral=True)
+            await inter.response.send_message(f"Ошибка: {str(e)}", ephemeral=True)
 
 
     @commands.Cog.listener()

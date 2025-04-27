@@ -1,0 +1,4 @@
+# Ensure .env is ignored
+echo ".env" >> .gitignore
+git add .gitignore
+git commit -m "chore: Add .env to gitignore"

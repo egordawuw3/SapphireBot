@@ -1,0 +1,3 @@
+# CORRECT format (remove echo command)
+.env
+*.env

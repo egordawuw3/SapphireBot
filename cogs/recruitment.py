@@ -22,7 +22,7 @@ class Recruitment(commands.Cog):
         await channel.send(embed=banner_embed)
         
         # Создаем основной embed с текстом
-        main_embed = disnake.Embed(color=0x2B65EC)  # Изменен цвет на синий
+        main_embed = disnake.Embed(color=0x2B65EC)
         main_embed.description = (
             "<:Sapphire_icon:1159785674929623210> В нашу команду требуются целеустремлённые и увлечённые люди.\n"
             "\n"
@@ -42,13 +42,11 @@ class Recruitment(commands.Cog):
             "<:Sapphire_icon:1159787605848756224> Нажмите [сюда](https://docs.google.com/forms/d/e/1FAIpQLSeVd365eIyHLB4qpZRhClNL26xnubMPY9q8-RaFljqBZ1HJZw/viewform?usp=header), чтобы перейти к форме, которую следует заполнить.\n"
         )
         
-        # Добавляем разделительную линию как изображение
         main_embed.set_image(url="https://cdn.discordapp.com/attachments/1079626559423512679/1098117546328195072/whiteline.gif?ex=6807d169&is=68067fe9&hm=f5c56aa0b94df799be1732a2918cc5ffc3eece88c1f567a323362f840830b102&")
         
-        # Добавляем подпись
-        main_embed.set_footer(text="С уважением, администрация Sapphire Creators 💎")
+        # Обновляем подпись с иконкой
+        main_embed.set_footer(text="С уважением, администрация Sapphire Creators 💎", icon_url="https://cdn.discordapp.com/emojis/1369745518418198778.png")
         
-        # Отправляем embed с текстом
         await channel.send(embed=main_embed)
         
         print("✅ Сообщения о наборе успешно отправлены!")

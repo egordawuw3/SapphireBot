@@ -26,15 +26,6 @@ class Help(commands.Cog):
             inline=False
         )
 
-        # Секция музыки
-        embed.add_field(
-            name="🎵 Музыка",
-            value="""
-`/mus [url]` - Включить музыку с YouTube
-`/stop` - Остановить воспроизведение
-            """,
-            inline=False
-        )
 
         # Секция AI-чата
         embed.add_field(

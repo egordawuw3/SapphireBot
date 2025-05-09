@@ -286,5 +286,58 @@ class Staff(commands.Cog):
             )
             await inter.edit_original_message(embed=embed)
 
+    @commands.slash_command(
+        name="kick",
+        description="Выгнать пользователя с сервера"
+    )
+    async def kick(
+        self,
+        inter: disnake.ApplicationCommandInteraction,
+        member: disnake.Member,
+        reason: str = "Причина не указана"
+    ):
+        if not await self.check_staff(inter):
+            return
+        
+        if member.top_role >= inter.author.top_role:
+            embed = disnake.Embed(
+                title="❌ Ошибка",
+                description="Вы не можете выгнать участника с равной или более высокой ролью!",
+                color=0xff0000
+            )
+            return await inter.response.send_message(embed=embed, ephemeral=True)
+
+        try:
+            await member.kick(reason=reason)
+            
+            embed = disnake.Embed(
+                title="👢 Кик пользователя",
+                color=0xff9900,
+                timestamp=datetime.now()
+            )
+            embed.add_field(name="Выгнан пользователь", value=f"{member.mention} (`{member.id}`)", inline=False)
+            embed.add_field(name="Модератор", value=f"{inter.author.mention}", inline=True)
+            embed.add_field(name="Причина", value=reason, inline=True)
+            
+            await inter.response.send_message(embed=embed)
+            
+            try:
+                dm_embed = disnake.Embed(
+                    title="👢 Вы были кикнуты",
+                    description=f"**Сервер:** {inter.guild.name}\n**Причина:** {reason}",
+                    color=0xff9900
+                )
+                await member.send(embed=dm_embed)
+            except:
+                pass
+                
+        except Exception as e:
+            embed = disnake.Embed(
+                title="❌ Ошибка",
+                description=f"Не удалось выгнать пользователя: {str(e)}",
+                color=0xff0000
+            )
+            await inter.response.send_message(embed=embed, ephemeral=True)
+
 def setup(bot):
     bot.add_cog(Staff(bot))

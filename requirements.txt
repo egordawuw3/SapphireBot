@@ -3,4 +3,9 @@ python-dotenv==1.0.0
 yt-dlp
 PyNaCl
 ffmpeg-python
+edge-tts
+vosk
+fuzzywuzzy
+pyaudio
+python-Levenshtein
 google-generativeai

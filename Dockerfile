@@ -6,7 +6,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     python3-dev \
     portaudio19-dev \
-    python-all-dev \
     build-essential \
     libportaudio2 \
     ffmpeg \

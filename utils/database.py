@@ -39,6 +39,14 @@ class Database:
             )
             ''')
             
+            # Создаем таблицу для экономики
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_economy (
+                user_id TEXT PRIMARY KEY,
+                balance INTEGER NOT NULL DEFAULT 0
+            )
+            ''')
+            
             conn.commit()
             logger.info("База данных успешно инициализирована")
         except Exception as e:
@@ -157,6 +165,43 @@ class Database:
             return True
         except Exception as e:
             logger.error(f"Ошибка при удалении сессии AI для пользователя {user_id}: {e}")
+            return False
+        finally:
+            if conn:
+                conn.close()
+    
+    def get_user_balance(self, user_id: str) -> int:
+        """Получить баланс пользователя"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT balance FROM user_economy WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            
+            return result[0] if result else 0
+        except Exception as e:
+            logger.error(f"Ошибка при получении баланса пользователя {user_id}: {e}")
+            return 0
+        finally:
+            if conn:
+                conn.close()
+    
+    def update_user_balance(self, user_id: str, balance: int) -> bool:
+        """Обновить баланс пользователя"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                "INSERT OR REPLACE INTO user_economy (user_id, balance) VALUES (?, ?)",
+                (user_id, balance)
+            )
+            
+            conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка при обновлении баланса пользователя {user_id}: {e}")
             return False
         finally:
             if conn:

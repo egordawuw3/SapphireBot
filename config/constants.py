@@ -40,3 +40,25 @@ MAX_SONG_DURATION = 600  # Максимальная длительность п�
 # Настройки для AI чата
 AI_SESSION_TIMEOUT = 3600  # Время жизни сессии в секундах (1 час)
 AI_MAX_HISTORY = 20  # Максимальное количество сообщений в истории
+
+# Константы для SapphireBot
+
+STAFF_ROLE_ID = 1207281299849744385
+BAN_ROLE_ID = 1222507607026307082
+DEFAULT_ROLE_ID = 832314278702874694
+MUTE_ROLE_ID = 999728904166187018
+
+DEFAULT_COLOR = 0x2B65EC
+ERROR_COLOR = 0xFF0000
+SUCCESS_COLOR = 0x00FF00
+WARNING_COLOR = 0xFF9900
+INFO_COLOR = 0x3498db
+
+FOOTER_TEXT = "С уважением, администрация Sapphire Creators 💎"
+
+# Эмодзи (пример)
+EMOJI_SAPPHIRE = "<:Sapphire_icon:1159784599010938922>"
+EMOJI_BAN = "🔨"
+EMOJI_MUTE = "🔇"
+EMOJI_KICK = "👢"
+EMOJI_CLEAR = "🧹"

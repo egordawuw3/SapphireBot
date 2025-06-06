@@ -30,7 +30,7 @@ class RequestModal(disnake.ui.Modal):
         self.ticket_type = ticket_type
         components = [
             disnake.ui.TextInput(
-                label="Причина",
+                label="Опишите подробно вашу заявку",
                 custom_id="request_reason",
                 style=disnake.TextInputStyle.paragraph
             )

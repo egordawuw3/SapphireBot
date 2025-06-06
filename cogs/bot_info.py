@@ -140,6 +140,7 @@ class BotInfo(commands.Cog):
 
         # Новое сообщение с кнопками и ссылкой
         info_embed = make_embed(
+            title="",
             description=(
                 "<:Sapphire_icon:1159785545694711839> Используйте ниже кнопки, чтобы:\n"
                 "> ‎\n"

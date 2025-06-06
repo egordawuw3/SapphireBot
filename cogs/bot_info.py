@@ -80,7 +80,7 @@ class RequestModal(disnake.ui.Modal):
             color=INFO_COLOR,
             fields=fields
         )
-        await channel.send(embed=embed)
+        await channel.send(embed=embed, view=CloseRequestView(channel.id, inter.user.id))
         await inter.followup.send(f"Заявка создана в канале {channel.mention}", ephemeral=True)
 
     async def get_next_request_number(self, guild: disnake.Guild) -> int:
@@ -92,6 +92,23 @@ class RequestView(disnake.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(RequestTypeSelect())
+
+# View для закрытия заявки
+class CloseRequestView(disnake.ui.View):
+    def __init__(self, channel_id: int, creator_id: int):
+        super().__init__(timeout=None)
+        self.channel_id = channel_id
+        self.creator_id = creator_id
+
+    @disnake.ui.button(label="Закрыть заявку", style=disnake.ButtonStyle.red, emoji="🔒", custom_id="close_request")
+    async def close_request(self, button, inter):
+        # Только создатель заявки или админ может закрыть
+        if inter.user.id != self.creator_id and not inter.user.guild_permissions.administrator:
+            await inter.response.send_message("Только создатель заявки или администратор может закрыть этот канал.", ephemeral=True)
+            return
+        await inter.response.send_message("Заявка будет закрыта через 3 секунды...", ephemeral=True)
+        await disnake.utils.sleep_until(disnake.utils.utcnow() + disnake.utils.timedelta(seconds=3))
+        await inter.channel.delete()
 
 class BotInfo(commands.Cog):
     """Cog для автоматического сообщения о Sapphire Bot и его использовании."""

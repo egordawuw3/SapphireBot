@@ -72,17 +72,17 @@ class TicketButtons(disnake.ui.View):
 
     @disnake.ui.button(label="Deposit", style=disnake.ButtonStyle.green, emoji="💸", custom_id="ticket_deposit")
     async def deposit(self, button, inter):
-        modal = CustomTicketModal("deposit", "Покупка валюты за деньги", "Опишите, сколько и какую валюту хотите купить")
+        modal = CustomTicketModal("deposit", "Покупка валюты за деньги", "Сумма и валюта")
         await inter.response.send_modal(modal)
 
     @disnake.ui.button(label="Exchange", style=disnake.ButtonStyle.blurple, emoji="🔄", custom_id="ticket_exchange")
     async def exchange(self, button, inter):
-        modal = CustomTicketModal("exchange", "Покупка услуг за валюту", "Опишите, какую услугу и за сколько SC хотите купить")
+        modal = CustomTicketModal("exchange", "Покупка услуг за валюту", "Услуга и цена (SC)")
         await inter.response.send_modal(modal)
 
     @disnake.ui.button(label="Tasks", style=disnake.ButtonStyle.gray, emoji="📝", custom_id="ticket_tasks")
     async def tasks(self, button, inter):
-        modal = CustomTicketModal("tasks", "Покупка валюты за услуги", "Опишите, какую услугу вы готовы выполнить и за сколько SC")
+        modal = CustomTicketModal("tasks", "Покупка валюты за услуги", "Ваша услуга и цена (SC)")
         await inter.response.send_modal(modal)
 
 class BotInfo(commands.Cog):

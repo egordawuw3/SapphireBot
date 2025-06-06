@@ -6,93 +6,6 @@ from config.constants import INFO_COLOR
 
 logger = logging.getLogger(__name__)
 
-# --- View с выпадающим меню и одной кнопкой ---
-class RequestTypeSelect(disnake.ui.Select):
-    def __init__(self):
-        options = [
-            disnake.SelectOption(label="Покупка валюты за деньги", value="deposit", emoji="💸"),
-            disnake.SelectOption(label="Покупка услуг за валюту", value="exchange", emoji="🔄"),
-            disnake.SelectOption(label="Покупка валюты за услуги", value="tasks", emoji="📝"),
-        ]
-        super().__init__(
-            placeholder="Выберите тип заявки...",
-            min_values=1,
-            max_values=1,
-            options=options
-        )
-
-    async def callback(self, inter: disnake.MessageInteraction):
-        ticket_type = self.values[0]
-        await inter.response.send_modal(RequestModal(ticket_type))
-
-class RequestModal(disnake.ui.Modal):
-    def __init__(self, ticket_type: str):
-        self.ticket_type = ticket_type
-        components = [
-            disnake.ui.TextInput(
-                label="Опишите подробно вашу заявку",
-                custom_id="request_reason",
-                style=disnake.TextInputStyle.paragraph
-            )
-        ]
-        type_map = {
-            "deposit": "Покупка валюты за деньги",
-            "exchange": "Покупка услуг за валюту",
-            "tasks": "Покупка валюты за услуги"
-        }
-        super().__init__(
-            title=type_map.get(ticket_type, "Заявка"),
-            custom_id=f"modal_request_{ticket_type}",
-            components=components
-        )
-
-    async def callback(self, inter: disnake.ModalInteraction) -> None:
-        await inter.response.defer(ephemeral=True)
-        guild = inter.guild
-        request_number = await self.get_next_request_number(guild)
-        overwrites = {
-            guild.default_role: disnake.PermissionOverwrite(read_messages=False),
-            inter.user: disnake.PermissionOverwrite(read_messages=True, send_messages=True),
-            guild.me: disnake.PermissionOverwrite(read_messages=True, send_messages=True)
-        }
-        category = disnake.utils.get(guild.categories, name="— × requests")
-        if not category:
-            category = await guild.create_category("— × requests", overwrites=overwrites)
-        channel = await guild.create_text_channel(
-            name=f"request-{request_number}",
-            category=category,
-            overwrites=overwrites,
-            topic=f"Создатель: {inter.user.id} | Тип: {self.ticket_type}"
-        )
-        type_map = {
-            "deposit": "Покупка валюты за деньги",
-            "exchange": "Покупка услуг за валюту",
-            "tasks": "Покупка валюты за услуги"
-        }
-        fields = [
-            {"name": "Создатель", "value": inter.user.mention, "inline": True},
-            {"name": "Тип заявки", "value": type_map.get(self.ticket_type, self.ticket_type), "inline": True},
-            {"name": "Причина", "value": inter.text_values["request_reason"], "inline": False}
-        ]
-        embed = make_embed(
-            title=f"Заявка #{request_number}",
-            description=f"📝 {type_map.get(self.ticket_type, self.ticket_type)}",
-            color=INFO_COLOR,
-            fields=fields
-        )
-        await channel.send(embed=embed, view=CloseRequestView(channel.id, inter.user.id))
-        await inter.followup.send(f"Заявка создана в канале {channel.mention}", ephemeral=True)
-
-    async def get_next_request_number(self, guild: disnake.Guild) -> int:
-        existing = [c for c in guild.text_channels if c.name.startswith("request-")]
-        numbers = [int(c.name.split("-", 1)[1]) for c in existing if c.name.split("-", 1)[1].isdigit()]
-        return max(numbers, default=0) + 1
-
-class RequestView(disnake.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(RequestTypeSelect())
-
 # View для закрытия заявки
 class CloseRequestView(disnake.ui.View):
     def __init__(self, channel_id: int, creator_id: int):
@@ -153,9 +66,9 @@ class BotInfo(commands.Cog):
                 "> - Приглашение друзей - Пригласите друга, который активит больше 3 дней = 100SC (лимит: 3 друга в 24h)\n"
                 "> - Специальные задания - Выполняйте особые задания от стафа = от 50SC до 200SC (см.<#902640230018973746>)\n"
                 "> - Донат - 100₴ - 800SC; 100₽ = 400SC; 10₮ = 4000SC; 100zł = 9000SC; 10€ = 4500SC (Вывод средств осуществляется исключительно в указанных фиатных валютах)\n"
-                "> - Зарплата для стафа - вступайте в ряды персоналы и получайте минимальный оклад (от 800SC в неделю)\n"
+                "> - Зарплата для стафа - вступайте в ряды персонала и получайте минимальный оклад (от 800SC в неделю)\n"
                 "> ‎\n"
-                "> <:Sapphire_icon:1159787647712120924> ВАЖНО: коины начисляются раз в 24 часа администрацией."
+                "> <:Sapphire_icon:1159787647712120924> ВАЖНО: коины начисляются администрацией раз в 24 часа."
             ),
             color=INFO_COLOR
         )
@@ -163,23 +76,70 @@ class BotInfo(commands.Cog):
         main_embed.set_footer(text="С уважением, администрация Sapphire Creators 💎", icon_url="https://cdn.discordapp.com/emojis/1369745518418198778.png")
         await channel.send(embed=main_embed)
 
-        # Новое сообщение с кнопками и ссылкой
-        info_embed = make_embed(
-            title="",
-            description=(
-                "<:Sapphire_icon:1159785545694711839> Используйте ниже кнопки, чтобы:\n"
-                "> ‎\n"
-                "> Купить валюту за деньги\n"
-                "> Купить услуги за валюту\n"
-                "> Получить валюту за выполнение специальных заданий \n"
-                "> ‎\n"
-                "> <:Sapphire_icon:1159787682734542869> Остались вопросы? [Нажмите сюда](https://discord.com/channels/832291503581167636/1054101394270978119)."
-            ),
-            color=INFO_COLOR
+        # Кнопка заказа
+        await channel.send(view=OrderButtonView())
+
+# View с одной кнопкой заказа
+class OrderButtonView(disnake.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @disnake.ui.button(label="Оформить заказ 💎", style=disnake.ButtonStyle.green, custom_id="order_create")
+    async def create_order(self, button, inter):
+        modal = RequestModal()
+        await inter.response.send_modal(modal)
+
+# Модалка для заказа
+class RequestModal(disnake.ui.Modal):
+    def __init__(self):
+        components = [
+            disnake.ui.TextInput(
+                label="Опишите подробно вашу заявку",
+                custom_id="request_reason",
+                style=disnake.TextInputStyle.paragraph
+            )
+        ]
+        super().__init__(
+            title="Оформление заказа",
+            custom_id="modal_order_request",
+            components=components
         )
-        main_embed.set_image(url="https://cdn.discordapp.com/attachments/1079626559423512679/1098117546328195072/whiteline.gif")
-        main_embed.set_footer(text="С уважением, администрация Sapphire Creators 💎", icon_url="https://cdn.discordapp.com/emojis/1369745518418198778.png")
-        await channel.send(embed=main_embed)
+
+    async def callback(self, inter: disnake.ModalInteraction) -> None:
+        await inter.response.defer(ephemeral=True)
+        guild = inter.guild
+        request_number = await self.get_next_request_number(guild)
+        overwrites = {
+            guild.default_role: disnake.PermissionOverwrite(read_messages=False),
+            inter.user: disnake.PermissionOverwrite(read_messages=True, send_messages=True),
+            guild.me: disnake.PermissionOverwrite(read_messages=True, send_messages=True)
+        }
+        category = disnake.utils.get(guild.categories, name="— × requests")
+        if not category:
+            category = await guild.create_category("— × requests", overwrites=overwrites)
+        channel = await guild.create_text_channel(
+            name=f"request-{request_number}",
+            category=category,
+            overwrites=overwrites,
+            topic=f"Создатель: {inter.user.id}"
+        )
+        fields = [
+            {"name": "Создатель", "value": inter.user.mention, "inline": True},
+            {"name": "Описание заказа", "value": inter.text_values["request_reason"], "inline": False}
+        ]
+        embed = make_embed(
+            title=f"Заказ #{request_number}",
+            description="📝 Новый заказ",
+            color=INFO_COLOR,
+            fields=fields
+        )
+        await channel.send(embed=embed, view=CloseRequestView(channel.id, inter.user.id))
+        await inter.followup.send(f"Заказ создан в канале {channel.mention}", ephemeral=True)
+
+    async def get_next_request_number(self, guild: disnake.Guild) -> int:
+        existing = [c for c in guild.text_channels if c.name.startswith("request-")]
+        numbers = [int(c.name.split("-", 1)[1]) for c in existing if c.name.split("-", 1)[1].isdigit()]
+        return max(numbers, default=0) + 1
 
 def setup(bot: commands.Bot) -> None:
     bot.add_cog(BotInfo(bot)) 

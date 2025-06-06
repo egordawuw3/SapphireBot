@@ -3,7 +3,7 @@ from disnake.ext import commands
 from utils.embed_utils import make_embed
 from utils.economy_service import EconomyService
 from utils.permissions import require_staff
-from config.constants import SUCCESS_COLOR, ERROR_COLOR, INFO_COLOR
+from config.constants import SUCCESS_COLOR, ERROR_COLOR, INFO_COLOR, EMOJI_GOLD, EMOJI_SILVER, EMOJI_BRONZE, EMBED_COLOR
 
 class Economy(commands.Cog):
     """Экономические команды SapphireBot."""
@@ -11,10 +11,10 @@ class Economy(commands.Cog):
         self.bot = bot
 
     @commands.slash_command(
-        name="balance",
+        name="bal",
         description="Показать баланс пользователя"
     )
-    async def balance(self, inter: disnake.ApplicationCommandInteraction, member: disnake.Member = None):
+    async def bal(self, inter: disnake.ApplicationCommandInteraction, member: disnake.Member = None):
         """Показывает баланс пользователя или свой собственный."""
         member = member or inter.author
         balance = EconomyService.get_balance(str(member.id))
@@ -27,12 +27,32 @@ class Economy(commands.Cog):
         await inter.response.send_message(embed=embed)
 
     @commands.slash_command(
-        name="add_balance",
-        description="Добавить баланс пользователю (только staff)"
+        name="add",
+        description="Выдать монеты юзеру (мод, раз в 24ч)"
     )
     @require_staff()
-    async def add_balance(self, inter: disnake.ApplicationCommandInteraction, member: disnake.Member, amount: int = commands.Param(ge=1), reason: str = "Причина не указана"):
-        """Добавляет баланс пользователю. Только для staff."""
+    async def add(self, inter: disnake.ApplicationCommandInteraction, member: disnake.Member, amount: int = commands.Param(ge=1), reason: str = "Причина не указана"):
+        """Выдать монеты пользователю (раз в 24ч, только staff)."""
+        import datetime
+        from disnake.ext.commands import CommandOnCooldown
+        # Проверка кулдауна (24ч на пользователя)
+        cooldown_key = f"add_{inter.author.id}_{member.id}"
+        if not hasattr(self, "_add_cooldowns"):
+            self._add_cooldowns = {}
+        now = datetime.datetime.now().timestamp()
+        last = self._add_cooldowns.get(cooldown_key, 0)
+        if now - last < 86400:
+            left = int(86400 - (now - last))
+            hours = left // 3600
+            minutes = (left % 3600) // 60
+            embed = make_embed(
+                title="Кулдаун",
+                description=f"Вы уже выдавали монеты этому пользователю за последние 24ч. Попробуйте снова через {hours}ч {minutes}м.",
+                color=ERROR_COLOR
+            )
+            await inter.response.send_message(embed=embed, ephemeral=True)
+            return
+        self._add_cooldowns[cooldown_key] = now
         new_balance = EconomyService.add_balance(str(member.id), amount)
         embed = make_embed(
             title="Баланс пополнен",
@@ -42,12 +62,12 @@ class Economy(commands.Cog):
         await inter.response.send_message(embed=embed)
 
     @commands.slash_command(
-        name="remove_balance",
-        description="Убрать баланс у пользователя (только staff)"
+        name="remove",
+        description="Забрать монеты у юзера (мод)"
     )
     @require_staff()
-    async def remove_balance(self, inter: disnake.ApplicationCommandInteraction, member: disnake.Member, amount: int = commands.Param(ge=1), reason: str = "Причина не указана"):
-        """Уменьшает баланс пользователя. Только для staff."""
+    async def remove(self, inter: disnake.ApplicationCommandInteraction, member: disnake.Member, amount: int = commands.Param(ge=1), reason: str = "Причина не указана"):
+        """Забрать монеты у пользователя (только staff)."""
         new_balance = EconomyService.remove_balance(str(member.id), amount)
         embed = make_embed(
             title="Баланс уменьшен",
@@ -57,19 +77,49 @@ class Economy(commands.Cog):
         await inter.response.send_message(embed=embed)
 
     @commands.slash_command(
-        name="set_balance",
-        description="Установить баланс пользователю (только staff)"
+        name="reset",
+        description="Аннулировать баланс юзера (мод)"
     )
     @require_staff()
-    async def set_balance(self, inter: disnake.ApplicationCommandInteraction, member: disnake.Member, amount: int = commands.Param(ge=0), reason: str = "Причина не указана"):
-        """Устанавливает баланс пользователя. Только для staff."""
-        EconomyService.set_balance(str(member.id), amount)
+    async def reset(self, inter: disnake.ApplicationCommandInteraction, member: disnake.Member, reason: str = "Причина не указана"):
+        """Аннулирует баланс пользователя (только staff)."""
+        EconomyService.reset_balance(str(member.id))
         embed = make_embed(
-            title="Баланс установлен",
-            description=f"Пользователь: {member.mention}\nНовый баланс: {amount} 💎\nМодератор: {inter.author.mention}\nПричина: {reason}",
-            color=INFO_COLOR
+            title="Баланс аннулирован",
+            description=f"Пользователь: {member.mention}\nБаланс сброшен до 0 💎\nМодератор: {inter.author.mention}\nПричина: {reason}",
+            color=WARNING_COLOR
         )
         await inter.response.send_message(embed=embed)
+
+    @commands.slash_command(name="scoreboard", description="Таблица лидеров по монетам")
+    async def scoreboard(self, inter: disnake.ApplicationCommandInteraction):
+        """Показывает топ-10 пользователей по балансу."""
+        from utils.economy_service import get_top_balances
+        top = await get_top_balances(10)
+        if not top:
+            await inter.send(embed=make_embed(
+                title="Таблица лидеров пуста",
+                description="Пока никто не заработал монет.",
+                color=ERROR_COLOR
+            ), ephemeral=True)
+            return
+        medals = [EMOJI_GOLD, EMOJI_SILVER, EMOJI_BRONZE]
+        lines = []
+        for i, (user_id, balance) in enumerate(top, 1):
+            medal = medals[i-1] if i <= 3 else f"`{i}`"
+            try:
+                user = await self.bot.fetch_user(int(user_id))
+                user_mention = user.mention
+            except Exception:
+                user_mention = f"<@{user_id}>"
+            lines.append(f"{medal} {user_mention} — **{balance} монет**")
+        embed = make_embed(
+            title="🏆 Таблица лидеров по монетам",
+            description="\n".join(lines),
+            color=EMBED_COLOR
+        )
+        embed.set_footer(text="Топ-10 по балансу")
+        await inter.send(embed=embed)
 
 def setup(bot):
     bot.add_cog(Economy(bot))

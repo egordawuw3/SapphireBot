@@ -6,9 +6,28 @@ from config.constants import INFO_COLOR
 
 logger = logging.getLogger(__name__)
 
-# --- Ticket Modal для одной заявки ---
-class RequestModal(disnake.ui.Modal):
+# --- View с выпадающим меню и одной кнопкой ---
+class RequestTypeSelect(disnake.ui.Select):
     def __init__(self):
+        options = [
+            disnake.SelectOption(label="Покупка валюты за деньги", value="deposit", emoji="💸"),
+            disnake.SelectOption(label="Покупка услуг за валюту", value="exchange", emoji="🔄"),
+            disnake.SelectOption(label="Покупка валюты за услуги", value="tasks", emoji="📝"),
+        ]
+        super().__init__(
+            placeholder="Выберите тип заявки...",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+
+    async def callback(self, inter: disnake.MessageInteraction):
+        ticket_type = self.values[0]
+        await inter.response.send_modal(RequestModal(ticket_type))
+
+class RequestModal(disnake.ui.Modal):
+    def __init__(self, ticket_type: str):
+        self.ticket_type = ticket_type
         components = [
             disnake.ui.TextInput(
                 label="Причина",
@@ -16,9 +35,14 @@ class RequestModal(disnake.ui.Modal):
                 style=disnake.TextInputStyle.paragraph
             )
         ]
+        type_map = {
+            "deposit": "Покупка валюты за деньги",
+            "exchange": "Покупка услуг за валюту",
+            "tasks": "Покупка валюты за услуги"
+        }
         super().__init__(
-            title="Создать заявку",
-            custom_id="modal_request",
+            title=type_map.get(ticket_type, "Заявка"),
+            custom_id=f"modal_request_{ticket_type}",
             components=components
         )
 
@@ -38,15 +62,21 @@ class RequestModal(disnake.ui.Modal):
             name=f"request-{request_number}",
             category=category,
             overwrites=overwrites,
-            topic=f"Создатель: {inter.user.id}"
+            topic=f"Создатель: {inter.user.id} | Тип: {self.ticket_type}"
         )
+        type_map = {
+            "deposit": "Покупка валюты за деньги",
+            "exchange": "Покупка услуг за валюту",
+            "tasks": "Покупка валюты за услуги"
+        }
         fields = [
             {"name": "Создатель", "value": inter.user.mention, "inline": True},
+            {"name": "Тип заявки", "value": type_map.get(self.ticket_type, self.ticket_type), "inline": True},
             {"name": "Причина", "value": inter.text_values["request_reason"], "inline": False}
         ]
         embed = make_embed(
             title=f"Заявка #{request_number}",
-            description="📝 Новая заявка",
+            description=f"📝 {type_map.get(self.ticket_type, self.ticket_type)}",
             color=INFO_COLOR,
             fields=fields
         )
@@ -58,15 +88,10 @@ class RequestModal(disnake.ui.Modal):
         numbers = [int(c.name.split("-", 1)[1]) for c in existing if c.name.split("-", 1)[1].isdigit()]
         return max(numbers, default=0) + 1
 
-# --- View с одной кнопкой ---
-class RequestButton(disnake.ui.View):
+class RequestView(disnake.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-
-    @disnake.ui.button(label="Создать заявку", style=disnake.ButtonStyle.blurple, emoji="📝", custom_id="request_create")
-    async def create_request(self, button, inter):
-        modal = RequestModal()
-        await inter.response.send_modal(modal)
+        self.add_item(RequestTypeSelect())
 
 class BotInfo(commands.Cog):
     """Cog для автоматического сообщения о Sapphire Bot и его использовании."""
@@ -136,7 +161,7 @@ class BotInfo(commands.Cog):
             color=INFO_COLOR
         )
         info_embed.set_footer(text="С уважением, администрация Sapphire Creators 💎", icon_url="https://cdn.discordapp.com/emojis/1369745518418198778.png")
-        await channel.send(embed=info_embed, view=RequestButton())
+        await channel.send(embed=info_embed, view=RequestView())
 
 def setup(bot: commands.Bot) -> None:
     bot.add_cog(BotInfo(bot)) 

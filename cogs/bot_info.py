@@ -6,83 +6,66 @@ from config.constants import INFO_COLOR
 
 logger = logging.getLogger(__name__)
 
-# --- Ticket Modal для разных типов ---
-class CustomTicketModal(disnake.ui.Modal):
-    def __init__(self, ticket_type: str, title: str, label: str):
-        self.ticket_type = ticket_type
+# --- Ticket Modal для одной заявки ---
+class RequestModal(disnake.ui.Modal):
+    def __init__(self):
         components = [
             disnake.ui.TextInput(
-                label=label,
-                custom_id="ticket_reason",
+                label="Причина",
+                custom_id="request_reason",
                 style=disnake.TextInputStyle.paragraph
             )
         ]
         super().__init__(
-            title=title,
-            custom_id=f"modal_{ticket_type}",
+            title="Создать заявку",
+            custom_id="modal_request",
             components=components
         )
 
     async def callback(self, inter: disnake.ModalInteraction) -> None:
         await inter.response.defer(ephemeral=True)
         guild = inter.guild
-        ticket_number = await self.get_next_ticket_number(guild)
+        request_number = await self.get_next_request_number(guild)
         overwrites = {
             guild.default_role: disnake.PermissionOverwrite(read_messages=False),
             inter.user: disnake.PermissionOverwrite(read_messages=True, send_messages=True),
             guild.me: disnake.PermissionOverwrite(read_messages=True, send_messages=True)
         }
-        category = disnake.utils.get(guild.categories, name="— × tickets")
+        category = disnake.utils.get(guild.categories, name="— × requests")
         if not category:
-            category = await guild.create_category("— × tickets", overwrites=overwrites)
+            category = await guild.create_category("— × requests", overwrites=overwrites)
         channel = await guild.create_text_channel(
-            name=f"ticket-{ticket_number}",
+            name=f"request-{request_number}",
             category=category,
             overwrites=overwrites,
-            topic=f"Создатель: {inter.user.id} | Тип: {self.ticket_type}"
+            topic=f"Создатель: {inter.user.id}"
         )
-        type_map = {
-            "deposit": "Покупка валюты за деньги (донат)",
-            "exchange": "Покупка услуг за валюту",
-            "tasks": "Покупка валюты за услуги"
-        }
         fields = [
             {"name": "Создатель", "value": inter.user.mention, "inline": True},
-            {"name": "Тип заявки", "value": type_map.get(self.ticket_type, self.ticket_type), "inline": True},
-            {"name": "Причина", "value": inter.text_values["ticket_reason"], "inline": False}
+            {"name": "Причина", "value": inter.text_values["request_reason"], "inline": False}
         ]
         embed = make_embed(
-            title=f"Тикет #{ticket_number}",
-            description=f"🎫 {type_map.get(self.ticket_type, self.ticket_type)}",
+            title=f"Заявка #{request_number}",
+            description="📝 Новая заявка",
             color=INFO_COLOR,
             fields=fields
         )
         await channel.send(embed=embed)
-        await inter.followup.send(f"Тикет создан в канале {channel.mention}", ephemeral=True)
+        await inter.followup.send(f"Заявка создана в канале {channel.mention}", ephemeral=True)
 
-    async def get_next_ticket_number(self, guild: disnake.Guild) -> int:
-        existing = [c for c in guild.text_channels if c.name.startswith("ticket-")]
+    async def get_next_request_number(self, guild: disnake.Guild) -> int:
+        existing = [c for c in guild.text_channels if c.name.startswith("request-")]
         numbers = [int(c.name.split("-", 1)[1]) for c in existing if c.name.split("-", 1)[1].isdigit()]
         return max(numbers, default=0) + 1
 
-# --- View с кнопками ---
-class TicketButtons(disnake.ui.View):
+# --- View с одной кнопкой ---
+class RequestButton(disnake.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @disnake.ui.button(label="Deposit", style=disnake.ButtonStyle.green, emoji="💸", custom_id="ticket_deposit")
-    async def deposit(self, button, inter):
-        modal = CustomTicketModal("deposit", "Покупка валюты за деньги", "Сумма и валюта")
-        await inter.response.send_modal(modal)
-
-    @disnake.ui.button(label="Exchange", style=disnake.ButtonStyle.blurple, emoji="🔄", custom_id="ticket_exchange")
-    async def exchange(self, button, inter):
-        modal = CustomTicketModal("exchange", "Покупка услуг за валюту", "Услуга и цена (SC)")
-        await inter.response.send_modal(modal)
-
-    @disnake.ui.button(label="Tasks", style=disnake.ButtonStyle.gray, emoji="📝", custom_id="ticket_tasks")
-    async def tasks(self, button, inter):
-        modal = CustomTicketModal("tasks", "Покупка валюты за услуги", "Ваша услуга и цена (SC)")
+    @disnake.ui.button(label="Создать заявку", style=disnake.ButtonStyle.blurple, emoji="📝", custom_id="request_create")
+    async def create_request(self, button, inter):
+        modal = RequestModal()
         await inter.response.send_modal(modal)
 
 class BotInfo(commands.Cog):
@@ -153,7 +136,7 @@ class BotInfo(commands.Cog):
             color=INFO_COLOR
         )
         info_embed.set_footer(text="С уважением, администрация Sapphire Creators 💎", icon_url="https://cdn.discordapp.com/emojis/1369745518418198778.png")
-        await channel.send(embed=info_embed, view=TicketButtons())
+        await channel.send(embed=info_embed, view=RequestButton())
 
 def setup(bot: commands.Bot) -> None:
     bot.add_cog(BotInfo(bot)) 

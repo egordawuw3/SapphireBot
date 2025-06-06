@@ -6,6 +6,85 @@ from config.constants import INFO_COLOR
 
 logger = logging.getLogger(__name__)
 
+# --- Ticket Modal для разных типов ---
+class CustomTicketModal(disnake.ui.Modal):
+    def __init__(self, ticket_type: str, title: str, label: str):
+        self.ticket_type = ticket_type
+        components = [
+            disnake.ui.TextInput(
+                label=label,
+                custom_id="ticket_reason",
+                style=disnake.TextInputStyle.paragraph
+            )
+        ]
+        super().__init__(
+            title=title,
+            custom_id=f"modal_{ticket_type}",
+            components=components
+        )
+
+    async def callback(self, inter: disnake.ModalInteraction) -> None:
+        await inter.response.defer(ephemeral=True)
+        guild = inter.guild
+        ticket_number = await self.get_next_ticket_number(guild)
+        overwrites = {
+            guild.default_role: disnake.PermissionOverwrite(read_messages=False),
+            inter.user: disnake.PermissionOverwrite(read_messages=True, send_messages=True),
+            guild.me: disnake.PermissionOverwrite(read_messages=True, send_messages=True)
+        }
+        category = disnake.utils.get(guild.categories, name="— × tickets")
+        if not category:
+            category = await guild.create_category("— × tickets", overwrites=overwrites)
+        channel = await guild.create_text_channel(
+            name=f"ticket-{ticket_number}",
+            category=category,
+            overwrites=overwrites,
+            topic=f"Создатель: {inter.user.id} | Тип: {self.ticket_type}"
+        )
+        type_map = {
+            "deposit": "Покупка валюты за деньги (донат)",
+            "exchange": "Покупка услуг за валюту",
+            "tasks": "Покупка валюты за услуги"
+        }
+        fields = [
+            {"name": "Создатель", "value": inter.user.mention, "inline": True},
+            {"name": "Тип заявки", "value": type_map.get(self.ticket_type, self.ticket_type), "inline": True},
+            {"name": "Причина", "value": inter.text_values["ticket_reason"], "inline": False}
+        ]
+        embed = make_embed(
+            title=f"Тикет #{ticket_number}",
+            description=f"🎫 {type_map.get(self.ticket_type, self.ticket_type)}",
+            color=INFO_COLOR,
+            fields=fields
+        )
+        await channel.send(embed=embed)
+        await inter.followup.send(f"Тикет создан в канале {channel.mention}", ephemeral=True)
+
+    async def get_next_ticket_number(self, guild: disnake.Guild) -> int:
+        existing = [c for c in guild.text_channels if c.name.startswith("ticket-")]
+        numbers = [int(c.name.split("-", 1)[1]) for c in existing if c.name.split("-", 1)[1].isdigit()]
+        return max(numbers, default=0) + 1
+
+# --- View с кнопками ---
+class TicketButtons(disnake.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @disnake.ui.button(label="Deposit", style=disnake.ButtonStyle.green, emoji="💸", custom_id="ticket_deposit")
+    async def deposit(self, button, inter):
+        modal = CustomTicketModal("deposit", "Покупка валюты за деньги", "Опишите, сколько и какую валюту хотите купить")
+        await inter.response.send_modal(modal)
+
+    @disnake.ui.button(label="Exchange", style=disnake.ButtonStyle.blurple, emoji="🔄", custom_id="ticket_exchange")
+    async def exchange(self, button, inter):
+        modal = CustomTicketModal("exchange", "Покупка услуг за валюту", "Опишите, какую услугу и за сколько SC хотите купить")
+        await inter.response.send_modal(modal)
+
+    @disnake.ui.button(label="Tasks", style=disnake.ButtonStyle.gray, emoji="📝", custom_id="ticket_tasks")
+    async def tasks(self, button, inter):
+        modal = CustomTicketModal("tasks", "Покупка валюты за услуги", "Опишите, какую услугу вы готовы выполнить и за сколько SC")
+        await inter.response.send_modal(modal)
+
 class BotInfo(commands.Cog):
     """Cog для автоматического сообщения о Sapphire Bot и его использовании."""
     def __init__(self, bot: commands.Bot):
@@ -58,6 +137,22 @@ class BotInfo(commands.Cog):
         main_embed.set_image(url="https://cdn.discordapp.com/attachments/1079626559423512679/1098117546328195072/whiteline.gif")
         main_embed.set_footer(text="С уважением, администрация Sapphire Creators 💎", icon_url="https://cdn.discordapp.com/emojis/1369745518418198778.png")
         await channel.send(embed=main_embed)
+
+        # Новое сообщение с кнопками и ссылкой
+        info_embed = make_embed(
+            description=(
+                "<:Sapphire_icon:1159785545694711839> Используйте ниже кнопки, чтобы:\n"
+                "> ‎\n"
+                "> Купить валюту за деньги\n"
+                "> Купить услуги за валюту\n"
+                "> Получить валюту за выполнение специальных заданий \n"
+                "> ‎\n"
+                "> <:Sapphire_icon:1159787682734542869> Остались вопросы? [Нажмите сюда](https://discord.com/channels/832291503581167636/1054101394270978119)."
+            ),
+            color=INFO_COLOR
+        )
+        info_embed.set_footer(text="С уважением, администрация Sapphire Creators 💎", icon_url="https://cdn.discordapp.com/emojis/1369745518418198778.png")
+        await channel.send(embed=info_embed, view=TicketButtons())
 
 def setup(bot: commands.Bot) -> None:
     bot.add_cog(BotInfo(bot)) 

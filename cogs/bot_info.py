@@ -177,8 +177,9 @@ class BotInfo(commands.Cog):
             ),
             color=INFO_COLOR
         )
-        info_embed.set_footer(text="С уважением, администрация Sapphire Creators 💎", icon_url="https://cdn.discordapp.com/emojis/1369745518418198778.png")
-        await channel.send(embed=info_embed, view=RequestView())
+        main_embed.set_image(url="https://cdn.discordapp.com/attachments/1079626559423512679/1098117546328195072/whiteline.gif")
+        main_embed.set_footer(text="С уважением, администрация Sapphire Creators 💎", icon_url="https://cdn.discordapp.com/emojis/1369745518418198778.png")
+        await channel.send(embed=main_embed)
 
 def setup(bot: commands.Bot) -> None:
     bot.add_cog(BotInfo(bot)) 

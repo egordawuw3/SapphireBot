@@ -19,7 +19,10 @@ class BotInfo(commands.Cog):
             logger.error("❌ Канал для информации о боте не найден!")
             return
         await channel.purge()
-        banner_embed = disnake.Embed(color=INFO_COLOR)
+        banner_embed = make_embed(
+            title=" ",
+            color=INFO_COLOR
+        )
         banner_embed.set_image(url="https://cdn.discordapp.com/attachments/998671608652759081/1380589388282462280/4747a6e4-a2d0-47ca-be3f-8d7fefc10f2a.png?ex=68446d90&is=68431c10&hm=8c3ee836fc453e4f9adbe1687c3b2d3a709f5665f42c4abced97caea960bc347&")
         await channel.send(embed=banner_embed)
         main_embed = make_embed(
@@ -52,9 +55,9 @@ class BotInfo(commands.Cog):
             ),
             color=INFO_COLOR
         )
+        main_embed.set_image(url="https://cdn.discordapp.com/attachments/1079626559423512679/1098117546328195072/whiteline.gif")
         main_embed.set_footer(text="С уважением, администрация Sapphire Creators 💎", icon_url="https://cdn.discordapp.com/emojis/1369745518418198778.png")
         await channel.send(embed=main_embed)
-        logger.info("✅ Сообщения о Sapphire Bot успешно отправлены!")
 
 def setup(bot: commands.Bot) -> None:
     bot.add_cog(BotInfo(bot)) 

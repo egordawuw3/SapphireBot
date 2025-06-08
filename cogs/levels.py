@@ -169,5 +169,11 @@ class Levels(commands.Cog):
                 return color
         return INFO_COLOR
 
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member: disnake.Member, before: disnake.VoiceState, after: disnake.VoiceState) -> None:
+        logger.info(f"VOICE EVENT: {member} | before: {before.channel} | after: {after.channel}")
+        logger.info(f"JOIN: {member.id} at {datetime.utcnow()}")  # при входе
+        logger.info(f"LEAVE: {member.id} duration: {seconds} sec")  # при выходе
+
 def setup(bot):
     bot.add_cog(Levels(bot))

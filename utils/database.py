@@ -76,16 +76,14 @@ class Database:
                 conn.close()
     
     def update_user_data(self, user_id: str, xp: int, level: int) -> bool:
-        """Обновить данные пользователя"""
+        """Обновить данные пользователя (XP, level, last_message_time), не трогая voice_seconds"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            
             cursor.execute(
-                "INSERT OR REPLACE INTO user_levels (user_id, xp, level, last_message_time) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
-                (user_id, xp, level)
+                "UPDATE user_levels SET xp = ?, level = ?, last_message_time = CURRENT_TIMESTAMP WHERE user_id = ?",
+                (xp, level, user_id)
             )
-            
             conn.commit()
             return True
         except Exception as e:

@@ -32,27 +32,7 @@ class Economy(commands.Cog):
     )
     @require_staff()
     async def add(self, inter: disnake.ApplicationCommandInteraction, member: disnake.Member, amount: int = commands.Param(ge=1), reason: str = "Причина не указана"):
-        """Выдать монеты пользователю (раз в 24ч, только staff)."""
-        import datetime
-        from disnake.ext.commands import CommandOnCooldown
-        # Проверка кулдауна (24ч на пользователя)
-        cooldown_key = f"add_{inter.author.id}_{member.id}"
-        if not hasattr(self, "_add_cooldowns"):
-            self._add_cooldowns = {}
-        now = datetime.datetime.now().timestamp()
-        last = self._add_cooldowns.get(cooldown_key, 0)
-        if now - last < 86400:
-            left = int(86400 - (now - last))
-            hours = left // 3600
-            minutes = (left % 3600) // 60
-            embed = make_embed(
-                title="Кулдаун",
-                description=f"Вы уже выдавали монеты этому пользователю за последние 24ч. Попробуйте снова через {hours}ч {minutes}м.",
-                color=ERROR_COLOR
-            )
-            await inter.response.send_message(embed=embed, ephemeral=True)
-            return
-        self._add_cooldowns[cooldown_key] = now
+        """Выдать монеты пользователю (только staff)."""
         new_balance = EconomyService.add_balance(str(member.id), amount)
         embed = make_embed(
             title="Баланс пополнен",

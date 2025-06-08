@@ -4,6 +4,8 @@ import logging
 from utils.embed_utils import make_embed
 from config.constants import INFO_COLOR, ERROR_COLOR
 from typing import Optional
+from datetime import datetime
+from utils.database import Database
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +16,8 @@ class VoiceChannels(commands.Cog):
         self.voice_channels: dict[int, int] = {}
         self.channel_counter: int = 1
         self.settings_message: Optional[disnake.Message] = None
+        self.voice_join_times: dict[int, datetime] = {}
+        self.db = Database()
 
     async def create_settings_message(self, guild: disnake.Guild) -> None:
         """Создает сообщение с настройками в канале Voice Settings."""
@@ -72,6 +76,18 @@ class VoiceChannels(commands.Cog):
                     await before.channel.delete()
                     del self.voice_channels[before.channel.id]
                     await self.update_channel_numbers(before.channel.guild)
+            # Отслеживание входа
+            if after.channel and (not before.channel or before.channel.id != after.channel.id):
+                if member.voice and not member.voice.self_mute and not member.voice.self_deaf:
+                    self.voice_join_times[member.id] = datetime.utcnow()
+            # Отслеживание выхода
+            if before.channel and (not after.channel or before.channel.id != after.channel.id):
+                join_time = self.voice_join_times.pop(member.id, None)
+                if join_time:
+                    duration = datetime.utcnow() - join_time
+                    seconds = int(duration.total_seconds())
+                    if seconds > 0:
+                        self.db.add_user_voice_seconds(str(member.id), seconds)
         except Exception as e:
             logger.error(f"Ошибка в on_voice_state_update: {e}")
 

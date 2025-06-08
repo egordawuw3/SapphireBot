@@ -83,6 +83,15 @@ class Levels(commands.Cog):
                 {"name": "Опыт", "value": f"{current_xp} XP", "inline": True},
                 {"name": "До следующего уровня", "value": f"{xp_for_next - current_xp if xp_for_next != float('inf') else 'MAX'} XP", "inline": True}
             ]
+            # Показываем войс-активность для всех
+            voice_seconds = self.db.get_user_voice_seconds(user_id)
+            hours = voice_seconds // 3600
+            minutes = (voice_seconds % 3600) // 60
+            fields.append({
+                "name": "Войс-активность",
+                "value": f"{hours} ч. {minutes} мин.",
+                "inline": True
+            })
             embed = make_embed(
                 title=f"Ранг {target.display_name}",
                 color=color,

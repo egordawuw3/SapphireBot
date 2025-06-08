@@ -26,7 +26,8 @@ class Database:
                 user_id TEXT PRIMARY KEY,
                 xp INTEGER NOT NULL DEFAULT 0,
                 level INTEGER NOT NULL DEFAULT 0,
-                last_message_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                last_message_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                voice_seconds INTEGER NOT NULL DEFAULT 0
             )
             ''')
             
@@ -203,6 +204,41 @@ class Database:
         except Exception as e:
             logger.error(f"Ошибка при обновлении баланса пользователя {user_id}: {e}")
             return False
+        finally:
+            if conn:
+                conn.close()
+    
+    def get_user_voice_seconds(self, user_id: str) -> int:
+        """Получить общее время в войсе (секунды) пользователя"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT voice_seconds FROM user_levels WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            return result[0] if result else 0
+        except Exception as e:
+            logger.error(f"Ошибка при получении voice_seconds пользователя {user_id}: {e}")
+            return 0
+        finally:
+            if conn:
+                conn.close()
+    
+    def add_user_voice_seconds(self, user_id: str, seconds: int) -> None:
+        """Добавить секунды к общему времени в войсе пользователя"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT voice_seconds FROM user_levels WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            current = result[0] if result else 0
+            new_value = current + seconds
+            cursor.execute(
+                "UPDATE user_levels SET voice_seconds = ? WHERE user_id = ?",
+                (new_value, user_id)
+            )
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Ошибка при обновлении voice_seconds пользователя {user_id}: {e}")
         finally:
             if conn:
                 conn.close()

@@ -3,7 +3,7 @@ from disnake.ext import commands
 from utils.embed_utils import make_embed
 from utils.economy_service import EconomyService
 from utils.permissions import require_staff
-from config.constants import SUCCESS_COLOR, ERROR_COLOR, INFO_COLOR, EMOJI_GOLD, EMOJI_SILVER, EMOJI_BRONZE, EMBED_COLOR
+from config.constants import SUCCESS_COLOR, ERROR_COLOR, INFO_COLOR, EMOJI_GOLD, EMOJI_SILVER, EMOJI_BRONZE, EMBED_COLOR, WARNING_COLOR
 
 class Economy(commands.Cog):
     """Экономические команды SapphireBot."""

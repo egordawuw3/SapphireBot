@@ -19,6 +19,7 @@ class Levels(commands.Cog):
         self.max_level = MAX_LEVEL
         self.xp_cooldown = XP_COOLDOWN
         self.user_cooldowns = {}
+        self.voice_joins = {}  # user_id: datetime входа
 
     async def update_roles(self, member: disnake.Member, level: int) -> None:
         """Обновляет роли пользователя в зависимости от уровня."""
@@ -171,9 +172,22 @@ class Levels(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: disnake.Member, before: disnake.VoiceState, after: disnake.VoiceState) -> None:
-        logger.info(f"VOICE EVENT: {member} | before: {before.channel} | after: {after.channel}")
-        logger.info(f"JOIN: {member.id} at {datetime.utcnow()}")  # при входе
-        logger.info(f"LEAVE: {member.id} duration: {seconds} sec")  # при выходе
+        user_id = str(member.id)
+        # Заход в voice
+        if before.channel is None and after.channel is not None:
+            self.voice_joins[user_id] = datetime.utcnow()
+            logger.info(f"VOICE JOIN: {member} at {self.voice_joins[user_id]}")
+        # Выход из voice
+        elif before.channel is not None and after.channel is None:
+            join_time = self.voice_joins.pop(user_id, None)
+            if join_time:
+                seconds = int((datetime.utcnow() - join_time).total_seconds())
+                current_seconds = self.db.get_user_voice_seconds(user_id)
+                new_total = current_seconds + seconds
+                self.db.update_user_voice_seconds(user_id, new_total)
+                logger.info(f"VOICE LEAVE: {member} duration: {seconds} sec, total: {new_total} sec")
+            else:
+                logger.info(f"VOICE LEAVE: {member} (join time not found)")
 
 def setup(bot):
     bot.add_cog(Levels(bot))

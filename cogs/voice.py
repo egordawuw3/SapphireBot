@@ -53,6 +53,8 @@ class VoiceChannels(commands.Cog):
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: disnake.Member, before: disnake.VoiceState, after: disnake.VoiceState):
         try:
+            log_channel = member.guild.get_channel(998670555152666645)
+            now = datetime.now().strftime('%d.%m.%Y %H:%M')
             if after.channel and after.channel.name == "「🔑」Create a voice" and after.channel.id not in self.voice_channels:
                 existing_channel = next((channel for channel, owner_id in self.voice_channels.items() if owner_id == member.id), None)
                 if existing_channel:
@@ -76,11 +78,19 @@ class VoiceChannels(commands.Cog):
                     await before.channel.delete()
                     del self.voice_channels[before.channel.id]
                     await self.update_channel_numbers(before.channel.guild)
-            # Отслеживание входа
+            # Вход в канал
             if after.channel and (not before.channel or before.channel.id != after.channel.id):
                 if member.voice and not member.voice.self_mute and not member.voice.self_deaf:
                     self.voice_join_times[member.id] = datetime.utcnow()
-            # Отслеживание выхода
+                if before.channel is None:
+                    # Сообщение о входе
+                    if log_channel:
+                        await log_channel.send(f"Участник {member.display_name} ({member.mention}) зашел в голосовой канал :voice_channel: {after.channel.name}\nId участника: {member.id}•{now}")
+                else:
+                    # Сообщение о переходе
+                    if log_channel:
+                        await log_channel.send(f"Участник {member.display_name} ({member.mention}) перешел в другой голосовой канал\nКанал: {after.channel.name}\nПредыдущий канал: {before.channel.name if before.channel else 'неизвестно'}\nId участника: {member.id}•{now}")
+            # Выход из канала
             if before.channel and (not after.channel or before.channel.id != after.channel.id):
                 join_time = self.voice_join_times.pop(member.id, None)
                 if join_time:
@@ -88,6 +98,10 @@ class VoiceChannels(commands.Cog):
                     seconds = int(duration.total_seconds())
                     if seconds > 0:
                         self.db.add_user_voice_seconds(str(member.id), seconds)
+                if after.channel is None:
+                    # Сообщение о выходе
+                    if log_channel:
+                        await log_channel.send(f"Участник {member.display_name} ({member.mention}) покинул голосовой канал :voice_channel: {before.channel.name}\nId участника: {member.id}•{now}")
         except Exception as e:
             logger.error(f"Ошибка в on_voice_state_update: {e}")
 

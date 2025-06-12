@@ -1,3 +1,45 @@
-# CORRECT format (remove echo command)
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# Environment variables
 .env
 *.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test and coverage
+.coverage
+coverage/
+htmlcov/
+
+# PyInstaller
+dist/
+build/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# VSCode and IDEs
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Docker
+*.pid
+
+# Data (if you want to ignore all in data/, remove if not)
+data/

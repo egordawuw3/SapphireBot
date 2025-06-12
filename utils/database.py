@@ -222,7 +222,7 @@ class Database:
                 conn.close()
     
     def add_user_voice_seconds(self, user_id: str, seconds: int) -> None:
-        """Добавить секунды к общему времени в войсе пользователя"""
+        """Добавить секунды к общему времени в войсе пользователя и начислить SC за каждый новый полный час"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -230,6 +230,16 @@ class Database:
             result = cursor.fetchone()
             current = result[0] if result else 0
             new_value = current + seconds
+            # Начисление SC за каждый новый полный час
+            old_hours = current // 3600
+            new_hours = new_value // 3600
+            hours_gained = new_hours - old_hours
+            if hours_gained > 0:
+                try:
+                    from utils.economy_service import EconomyService
+                    EconomyService.add_balance(user_id, hours_gained * 10)
+                except Exception as e:
+                    logger.error(f"Ошибка при начислении SC за голосовую активность: {e}")
             cursor.execute(
                 "UPDATE user_levels SET voice_seconds = ? WHERE user_id = ?",
                 (new_value, user_id)

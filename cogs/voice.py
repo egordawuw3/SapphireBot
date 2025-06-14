@@ -80,8 +80,11 @@ class VoiceChannels(commands.Cog):
                     await self.update_channel_numbers(before.channel.guild)
             # Вход в канал
             if after.channel and (not before.channel or before.channel.id != after.channel.id):
-                if member.voice and not member.voice.self_mute and not member.voice.self_deaf:
+                if member.voice and not member.voice.self_mute:
                     self.voice_join_times[member.id] = datetime.utcnow()
+                    logger.info(f"VOICE JOIN: {member} (ID: {member.id}) - микрофон включен")
+                else:
+                    logger.info(f"VOICE JOIN: {member} (ID: {member.id}) - микрофон выключен или нет доступа к войсу")
             # Выход из канала
             if before.channel and (not after.channel or before.channel.id != after.channel.id):
                 join_time = self.voice_join_times.pop(member.id, None)
@@ -90,6 +93,11 @@ class VoiceChannels(commands.Cog):
                     seconds = int(duration.total_seconds())
                     if seconds > 0:
                         self.db.add_user_voice_seconds(str(member.id), seconds)
+                        logger.info(f"VOICE LEAVE: {member} (ID: {member.id}) - начислено {seconds} секунд")
+                    else:
+                        logger.info(f"VOICE LEAVE: {member} (ID: {member.id}) - время не начислено (0 секунд)")
+                else:
+                    logger.info(f"VOICE LEAVE: {member} (ID: {member.id}) - время входа не найдено")
         except Exception as e:
             logger.error(f"Ошибка в on_voice_state_update: {e}")
 

@@ -21,7 +21,7 @@ bot = commands.Bot(
     command_prefix="!",
     intents=intents,
     test_guilds=[832291503581167636],
-    command_sync_flags=commands.CommandSyncFlags.default()  # Заменяем sync_commands
+    command_sync_flags=commands.CommandSyncFlags.default()  
 )
 
 @bot.event
